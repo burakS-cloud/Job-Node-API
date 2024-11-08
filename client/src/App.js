@@ -1,66 +1,77 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import CreateJobButton from "./components/CreateJobButton";
+import JobItem from "./components/JobItem";
 import JobList from "./components/JobList.js";
 
 function App() {
   const [jobs, setJobs] = useState([]);
-  const [activePolls, setActivePolls] = useState(new Set());
+  const [singleJob, setSingleJob] = useState(null);
 
   useEffect(() => {
-    loadJobs();
-  }, []);
+    // Check if we're on a single job route
+    const path = window.location.pathname;
+    const match = path.match(/\/jobs\/(.+)/);
 
-  const loadJobs = async () => {
-    try {
-      const response = await fetch("http://localhost:8080/jobs");
-      const jobsData = await response.json();
-      setJobs(jobsData);
+    let intervalId;
 
-      // Start polling for pending jobs
-      /* jobsData.forEach((job) => {
-        if (job.status === "pending") {
-          pollJobStatus(job.id);
-        }
-      }); */
-    } catch (error) {
-      console.error("Error loading jobs:", error);
-    }
-  };
+    if (match) {
+      // Initial fetch of the specific job
+      const fetchAndCheckJob = async () => {
+        try {
+          const response = await fetch(
+            `http://localhost:8080/jobs/${match[1]}`
+          );
+          const job = await response.json();
+          setSingleJob(job);
 
-  /* const pollJobStatus = (jobId) => {
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await fetch(`http://localhost:3000/jobs/${jobId}`);
-        const job = await response.json();
+          // If job is completed or failed, don't set up the interval
+          if (job.status !== "completed" && job.status !== "failed") {
+            intervalId = setInterval(async () => {
+              const response = await fetch(
+                `http://localhost:8080/jobs/${match[1]}`
+              );
+              const updatedJob = await response.json();
+              setSingleJob(updatedJob);
 
-        setJobs((prevJobs) => {
-          const newJobs = prevJobs.map((j) => (j.id === job.id ? job : j));
-
-          // Stop polling when job is no longer pending
-          if (job.status === "completed" || job.status === "failed") {
-            console.log(`Job ${jobId} ${job.status}. Stopping polling.`);
-            clearInterval(intervalId);
+              // Clear interval if job is complete or failed
+              if (
+                updatedJob.status === "completed" ||
+                updatedJob.status === "failed"
+              ) {
+                clearInterval(intervalId);
+              }
+            }, 5000);
           }
+        } catch (error) {
+          console.error("Error fetching job:", error);
+        }
+      };
 
-          return newJobs;
-        });
-      } catch (error) {
-        console.error("Error polling job status:", error);
+      fetchAndCheckJob();
+    } else {
+      // Load all jobs and set up polling if needed
+      const loadJobs = async () => {
+        try {
+          const response = await fetch("http://localhost:8080/jobs");
+          const jobsData = await response.json();
+          setJobs(jobsData);
+        } catch (error) {
+          console.error("Error loading jobs:", error);
+        }
+      };
+
+      loadJobs();
+      intervalId = setInterval(loadJobs, 5000);
+    }
+
+    // Cleanup function
+    return () => {
+      if (intervalId) {
         clearInterval(intervalId);
       }
-    }, 1000); // Check every second
-
-    // Return intervalId for cleanup
-    return intervalId;
-  }; */
-
-  // Cleanup function
-  /* useEffect(() => {
-    return () => {
-      activePolls.forEach((intervalId) => clearInterval(intervalId));
     };
-  }, [activePolls]); */
+  }, []);
 
   const handleCreateJob = async () => {
     try {
@@ -72,7 +83,6 @@ function App() {
       });
       const { jobId } = await response.json();
 
-      // Add the new job to the list
       const newJob = {
         id: jobId,
         status: "pending",
@@ -80,12 +90,22 @@ function App() {
       };
 
       setJobs((prevJobs) => [newJob, ...prevJobs]);
-      //pollJobStatus(jobId);
     } catch (error) {
       console.error("Error creating job:", error);
     }
   };
 
+  // If we're on a single job route, only show that job
+  if (singleJob) {
+    return (
+      <div className="App">
+        <h1>Food Photo Job Manager</h1>
+        <JobItem job={singleJob} />
+      </div>
+    );
+  }
+
+  // Otherwise show the normal list view
   return (
     <div className="App">
       <h1>Food Photo Job Manager</h1>

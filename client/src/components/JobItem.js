@@ -7,9 +7,9 @@ function JobItem({ job }) {
       <p>Job ID: {job.id}</p>
       <p>Status: {job.status}</p>
       {job.status === "completed" && job.result && (
-        <img src={job.result} className="job-image" alt="Yemek" />
+        <img src={job.result} className="job-image" alt="Food" />
       )}
-      {job.status === "failed" && <p className="error">Hata: {job.error}</p>}
+      {job.status === "failed" && <p className="error">Error: {job.error}</p>}
     </div>
   );
 }
