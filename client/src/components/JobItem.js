@@ -4,8 +4,8 @@ import "../styles/JobItem.css";
 function JobItem({ job }) {
   return (
     <div className="job-item">
-      <p>İş ID: {job.id}</p>
-      <p>Durum: {job.status}</p>
+      <p>Job ID: {job.id}</p>
+      <p>Status: {job.status}</p>
       {job.status === "completed" && job.result && (
         <img src={job.result} className="job-image" alt="Yemek" />
       )}

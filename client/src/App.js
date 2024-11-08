@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import CreateJobButton from "../components/CreateJobButton.js";
-import JobList from "../components/JobList.js";
 import "./App.css";
+import CreateJobButton from "./components/CreateJobButton";
+import JobList from "./components/JobList.js";
 
 function App() {
   const [jobs, setJobs] = useState([]);
+  const [activePolls, setActivePolls] = useState(new Set());
 
   useEffect(() => {
     loadJobs();
@@ -17,35 +18,49 @@ function App() {
       setJobs(jobsData);
 
       // Start polling for pending jobs
-      jobsData.forEach((job) => {
+      /* jobsData.forEach((job) => {
         if (job.status === "pending") {
           pollJobStatus(job.id);
         }
-      });
+      }); */
     } catch (error) {
       console.error("Error loading jobs:", error);
     }
   };
 
-  const pollJobStatus = async (jobId) => {
-    while (true) {
+  /* const pollJobStatus = (jobId) => {
+    const intervalId = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:8080/jobs/${jobId}`);
+        const response = await fetch(`http://localhost:3000/jobs/${jobId}`);
         const job = await response.json();
 
-        setJobs((prevJobs) => prevJobs.map((j) => (j.id === job.id ? job : j)));
+        setJobs((prevJobs) => {
+          const newJobs = prevJobs.map((j) => (j.id === job.id ? job : j));
 
-        if (job.status === "completed" || job.status === "failed") {
-          break;
-        }
+          // Stop polling when job is no longer pending
+          if (job.status === "completed" || job.status === "failed") {
+            console.log(`Job ${jobId} ${job.status}. Stopping polling.`);
+            clearInterval(intervalId);
+          }
 
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+          return newJobs;
+        });
       } catch (error) {
         console.error("Error polling job status:", error);
-        break;
+        clearInterval(intervalId);
       }
-    }
-  };
+    }, 1000); // Check every second
+
+    // Return intervalId for cleanup
+    return intervalId;
+  }; */
+
+  // Cleanup function
+  /* useEffect(() => {
+    return () => {
+      activePolls.forEach((intervalId) => clearInterval(intervalId));
+    };
+  }, [activePolls]); */
 
   const handleCreateJob = async () => {
     try {
@@ -65,7 +80,7 @@ function App() {
       };
 
       setJobs((prevJobs) => [newJob, ...prevJobs]);
-      pollJobStatus(jobId);
+      //pollJobStatus(jobId);
     } catch (error) {
       console.error("Error creating job:", error);
     }
