@@ -1,91 +1,64 @@
-import React, { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import React from "react";
 import "./App.css";
 import CreateJobButton from "./components/CreateJobButton";
 import JobItem from "./components/JobItem";
 import JobList from "./components/JobList.js";
 
 function App() {
-  const [jobs, setJobs] = useState([]);
-  const [singleJob, setSingleJob] = useState(null);
+  const queryClient = useQueryClient();
+  const path = window.location.pathname;
+  const match = path.match(/\/jobs\/(.+)/);
+  const jobId = match ? match[1] : null;
 
-  const fetchSingleJob = async (jobId) => {
-    try {
+  // Query for single job
+  const { data: singleJob } = useQuery({
+    queryKey: ["job", jobId],
+    queryFn: async () => {
       const response = await fetch(`http://localhost:8080/jobs/${jobId}`);
       const job = await response.json();
-      setSingleJob(job);
       return job;
-    } catch (error) {
-      console.error("Error fetching job:", error);
-    }
-  };
+    },
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      // Poll every 5 seconds if the job is pending
+      return query.data?.status === "pending" ? 5000 : false;
+    },
+    staleTime: 0, // Disable caching
+  });
 
-  const loadJobs = async () => {
-    try {
+  // Query for all jobs
+  const { data: jobs = [] } = useQuery({
+    queryKey: ["jobs"],
+    queryFn: async () => {
       const response = await fetch("http://localhost:8080/jobs");
-      const jobsData = await response.json();
-      setJobs(jobsData);
-    } catch (error) {
-      console.error("Error loading jobs:", error);
-    }
-  };
+      const jobs = await response.json();
+      return jobs;
+    },
+    enabled: !jobId,
+    refetchInterval: 5000, // Poll every 5 seconds
+    staleTime: 0, // Disable caching
+  });
 
-  useEffect(() => {
-    const path = window.location.pathname;
-    const match = path.match(/\/jobs\/(.+)/);
-    let intervalId;
-
-    const initialize = async () => {
-      if (match) {
-        const jobId = match[1];
-        const job = await fetchSingleJob(jobId);
-
-        // Only set up polling if job is not completed/failed
-        if (job && job.status !== "completed" && job.status !== "failed") {
-          intervalId = setInterval(async () => {
-            const updatedJob = await fetchSingleJob(jobId);
-            if (
-              updatedJob?.status === "completed" ||
-              updatedJob?.status === "failed"
-            ) {
-              clearInterval(intervalId);
-            }
-          }, 5000);
-        }
-      } else {
-        await loadJobs();
-        intervalId = setInterval(loadJobs, 5000);
-      }
-    };
-
-    initialize();
-
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, []);
-
-  const handleCreateJob = async () => {
-    try {
+  // Mutation for creating new job
+  const createJobMutation = useMutation({
+    mutationFn: async () => {
       const response = await fetch("http://localhost:8080/jobs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
       });
-      const { jobId } = await response.json();
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Invalidate the jobs query to ensure we get the latest data
+      queryClient.invalidateQueries(["jobs"]);
+    },
+  });
 
-      const newJob = {
-        id: jobId,
-        status: "pending",
-        result: null,
-      };
-
-      setJobs((prevJobs) => [newJob, ...prevJobs]);
-    } catch (error) {
-      console.error("Error creating job:", error);
-    }
+  const handleCreateJob = () => {
+    createJobMutation.mutate();
   };
 
   if (singleJob) {
