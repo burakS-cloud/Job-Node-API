@@ -24,6 +24,7 @@ function App() {
       const response = await fetch("http://localhost:8080/jobs");
       const jobsData = await response.json();
       setJobs(jobsData);
+      return jobsData;
     } catch (error) {
       console.error("Error loading jobs:", error);
     }
@@ -39,7 +40,6 @@ function App() {
         const jobId = match[1];
         const job = await fetchSingleJob(jobId);
 
-        // Only set up polling if job is not completed/failed
         if (job && job.status !== "completed" && job.status !== "failed") {
           intervalId = setInterval(async () => {
             const updatedJob = await fetchSingleJob(jobId);
@@ -52,8 +52,16 @@ function App() {
           }, 5000);
         }
       } else {
-        await loadJobs();
-        intervalId = setInterval(loadJobs, 5000);
+        const initialJobs = await loadJobs();
+
+        if (initialJobs?.some((job) => job.status === "pending")) {
+          intervalId = setInterval(async () => {
+            const updatedJobs = await loadJobs();
+            if (!updatedJobs?.some((job) => job.status === "pending")) {
+              clearInterval(intervalId);
+            }
+          }, 5000);
+        }
       }
     };
 
@@ -83,6 +91,15 @@ function App() {
       };
 
       setJobs((prevJobs) => [newJob, ...prevJobs]);
+
+      const intervalId = setInterval(async () => {
+        const updatedJobs = await loadJobs();
+        if (!updatedJobs?.some((job) => job.status === "pending")) {
+          clearInterval(intervalId);
+        }
+      }, 5000);
+
+      return () => clearInterval(intervalId);
     } catch (error) {
       console.error("Error creating job:", error);
     }
