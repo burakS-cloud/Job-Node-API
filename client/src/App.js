@@ -8,64 +8,57 @@ function App() {
   const [jobs, setJobs] = useState([]);
   const [singleJob, setSingleJob] = useState(null);
 
+  const fetchSingleJob = async (jobId) => {
+    try {
+      const response = await fetch(`http://localhost:8080/jobs/${jobId}`);
+      const job = await response.json();
+      setSingleJob(job);
+      return job;
+    } catch (error) {
+      console.error("Error fetching job:", error);
+    }
+  };
+
+  const loadJobs = async () => {
+    try {
+      const response = await fetch("http://localhost:8080/jobs");
+      const jobsData = await response.json();
+      setJobs(jobsData);
+    } catch (error) {
+      console.error("Error loading jobs:", error);
+    }
+  };
+
   useEffect(() => {
-    // Check if we're on a single job route
     const path = window.location.pathname;
     const match = path.match(/\/jobs\/(.+)/);
-
     let intervalId;
 
-    if (match) {
-      // Initial fetch of the specific job
-      const fetchAndCheckJob = async () => {
-        try {
-          const response = await fetch(
-            `http://localhost:8080/jobs/${match[1]}`
-          );
-          const job = await response.json();
-          setSingleJob(job);
+    const initialize = async () => {
+      if (match) {
+        const jobId = match[1];
+        const job = await fetchSingleJob(jobId);
 
-          // If job is completed or failed, don't set up the interval
-          if (job.status !== "completed" && job.status !== "failed") {
-            intervalId = setInterval(async () => {
-              const response = await fetch(
-                `http://localhost:8080/jobs/${match[1]}`
-              );
-              const updatedJob = await response.json();
-              setSingleJob(updatedJob);
-
-              // Clear interval if job is complete or failed
-              if (
-                updatedJob.status === "completed" ||
-                updatedJob.status === "failed"
-              ) {
-                clearInterval(intervalId);
-              }
-            }, 5000);
-          }
-        } catch (error) {
-          console.error("Error fetching job:", error);
+        // Only set up polling if job is not completed/failed
+        if (job && job.status !== "completed" && job.status !== "failed") {
+          intervalId = setInterval(async () => {
+            const updatedJob = await fetchSingleJob(jobId);
+            if (
+              updatedJob?.status === "completed" ||
+              updatedJob?.status === "failed"
+            ) {
+              clearInterval(intervalId);
+            }
+          }, 5000);
         }
-      };
+      } else {
+        await loadJobs();
+        intervalId = setInterval(loadJobs, 5000);
+      }
+    };
 
-      fetchAndCheckJob();
-    } else {
-      // Load all jobs and set up polling if needed
-      const loadJobs = async () => {
-        try {
-          const response = await fetch("http://localhost:8080/jobs");
-          const jobsData = await response.json();
-          setJobs(jobsData);
-        } catch (error) {
-          console.error("Error loading jobs:", error);
-        }
-      };
+    initialize();
 
-      loadJobs();
-      intervalId = setInterval(loadJobs, 5000);
-    }
-
-    // Cleanup function
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
@@ -95,7 +88,6 @@ function App() {
     }
   };
 
-  // If we're on a single job route, only show that job
   if (singleJob) {
     return (
       <div className="App">
@@ -105,7 +97,6 @@ function App() {
     );
   }
 
-  // Otherwise show the normal list view
   return (
     <div className="App">
       <h1>Food Photo Job Manager</h1>
